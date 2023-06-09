@@ -1,5 +1,5 @@
 # load data
-load("/Users/mahedi/Documents/UCL/scripts/R/Projects/Copy-number-architectures-define-treatment-mediated-selection-of-lethal-prostate-cancer-clones/figure_data.RData")
+load("./figure_data.RData")
 
 # plot normalized AR expression in PEA172 by clusters
 ggplot2::ggplot(data = ARV12mimic, ggplot2::aes(x = clusterID, y = AR_norm)) +

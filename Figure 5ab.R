@@ -1,5 +1,5 @@
 # load data
-load("/Users/mahedi/Documents/UCL/scripts/R/Projects/Copy-number-architectures-define-treatment-mediated-selection-of-lethal-prostate-cancer-clones/figure_data.RData")
+load("./figure_data.RData")
 
 # set the pipe operator
 "%>%" <- magrittr::`%>%`
