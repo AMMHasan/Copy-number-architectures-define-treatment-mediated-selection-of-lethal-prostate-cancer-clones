@@ -8,3 +8,9 @@ ggplot2::ggplot(data = ARV12mimic, ggplot2::aes(x = clusterID, y = AR_norm)) +
   ggplot2::xlab("SCRATCH cluster") +
   ggplot2::ylab("Normalized AR expression") +
   ggplot2::scale_fill_discrete(name = "AR-V12 mimics")
+
+# Fisher's exact test comparing expression of AR-V12 mimics in both clusters
+
+table(ARV12mimic$clusterID, ARV12mimic$ARV12mimic) %>% 
+  fisher.test()
+
