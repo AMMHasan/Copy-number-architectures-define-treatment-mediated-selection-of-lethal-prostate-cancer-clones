@@ -1,0 +1,26 @@
+{
+    "id": "A19E5E70",
+    "path": "~/Documents/UCL/scripts/R/Projects/Copy-number-architectures-define-treatment-mediated-selection-of-lethal-prostate-cancer-clones/Figure_5g.R",
+    "project_path": "Figure_5g.R",
+    "type": "r_source",
+    "hash": "0",
+    "contents": "",
+    "dirty": false,
+    "created": 1686313387475.0,
+    "source_on_save": false,
+    "relative_order": 11,
+    "properties": {
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "3,0",
+        "scrollLine": "0"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1686486308,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1686486308360,
+    "read_only": false,
+    "read_only_alternatives": []
+}

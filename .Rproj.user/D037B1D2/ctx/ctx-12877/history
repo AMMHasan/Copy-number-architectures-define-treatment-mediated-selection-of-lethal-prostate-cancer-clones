@@ -1,0 +1,512 @@
+)
+names(res_list) = purrr::map(.x = combn(sample_tibble$sampleID,2, simplify = F), .f = ~ paste(.x, collapse=" "))
+return(do.call(rbind, res_list) %>% data.frame(pct_common=.) )
+}
+percent_common = purrr::map(.x = mutation_position_tib %>% dplyr::pull(data),
+.f =func_pct_common) %>%
+do.call(rbind,.)
+df_stat <- percent_common %>%
+as.data.frame %>%
+merge(.,correlation_distances, by="row.names", all=T) %>%
+dplyr::select(-Row.names)
+p <- ggpubr::ggboxplot(df_stat, x="within_same_cluster", y="pct_common", fill="within_same_cluster") +
+ggplot2::xlab("Within same cluster?") +
+ggplot2::ylab("% common clonal non-silent mutations") +
+ggplot2::labs(fill = "Within same cluster?")
+p + ggpubr::stat_compare_means(method = "t.test")
+label <-  paste("italic(R)^2==",(lm(pct_common ~ distance, data = df_stat) %>% summary)$r.squared %>% round(2))
+plt <- ggplot2::ggplot(df_stat,ggplot2::aes(distance, pct_common, label=intersection)) +
+ggplot2::geom_point(ggplot2::aes(fill=within_same_cluster), size=4, pch=21) +
+ggplot2::geom_smooth(ggplot2::aes(distance, pct_common),method = "lm") +
+ggplot2::xlab("Correlation distance") +
+ggplot2::ylab("% common clonal non-silent mutations") +
+ggplot2::theme_bw() +
+ggplot2::annotate("text", x = 0.5, y=90, label=label, parse = T) +
+ggplot2::labs(fill="Within same cluster?")
+suppressWarnings(print(plt))
+load("/Users/mahedi/Documents/UCL/scripts/R/Projects/Treatment-mediated-selection-of-lethal-prostate-cancer-clones-defined-by-copy-number-architectures/data.Rdata")
+load("/Users/mahedi/Documents/UCL/scripts/R/Projects/Treatment-mediated-selection-of-lethal-prostate-cancer-clones-defined-by-copy-number-architectures/data.Rdata")
+count_data <- read.csv("~/Desktop/test/latest_500kb_run_30Nov21/Manuscript for Charlie Swanton/Nat_Comm/resumission/Final submission/count_data.csv", row.names = 1)
+meta_data_RNAseq <- read.csv("~/Desktop/test/latest_500kb_run_30Nov21/Manuscript for Charlie Swanton/Nat_Comm/resumission/Final submission/meta_data_RNAseq.csv", row.names = 1)
+low_count_filtered_exprMat <- filter_low_count_gene(count_data %>% dplyr::select(meta_data_RNAseq$sample_ID) %>% as.matrix())
+exprMat_norm <- (limma::voom(low_count_filtered_exprMat, normalize.method = "quantile"))$E %>%
+data.frame() %>% dplyr::mutate(hgnc=rownames(.)) %>%
+dplyr::filter(hgnc %in% c("AR",hieronymus_geneset$gene))
+load("/Users/mahedi/Documents/UCL/scripts/R/Projects/Treatment-mediated-selection-of-lethal-prostate-cancer-clones-defined-by-copy-number-architectures/data.Rdata")
+"%>%" = magrittr::`%>%`
+filter_low_count_gene <- function(mat,
+min_counts = 10L,
+min_cells_pc = 0.90) {
+n_genes_before <- dim(mat)[[1]]
+min_cells <- floor(dim(mat)[[2]] * min_cells_pc)
+keep_genes <- apply(mat, 1, function(x) {
+length(x[x >= min_counts]) > min_cells})
+mat <- mat[keep_genes, ]
+return(mat)
+}
+count_data <- read.csv("~/Desktop/test/latest_500kb_run_30Nov21/Manuscript for Charlie Swanton/Nat_Comm/resumission/Final submission/count_data.csv", row.names = 1)
+meta_data_RNAseq <- read.csv("~/Desktop/test/latest_500kb_run_30Nov21/Manuscript for Charlie Swanton/Nat_Comm/resumission/Final submission/meta_data_RNAseq.csv", row.names = 1)
+low_count_filtered_exprMat <- filter_low_count_gene(count_data %>% dplyr::select(meta_data_RNAseq$sample_ID) %>% as.matrix())
+exprMat_norm <- (limma::voom(low_count_filtered_exprMat, normalize.method = "quantile"))$E %>%
+data.frame() %>% dplyr::mutate(hgnc=rownames(.)) %>%
+dplyr::filter(hgnc %in% c("AR",hieronymus_geneset$gene))
+exprMat_norm_scaled <- exprMat_norm %>%
+dplyr::select(-hgnc) %>%
+t() %>% data.frame() %>%
+purrr::modify(.,~{(.x-mean(.x))/sd(.x)}) %>%
+t() %>% data.frame()
+colnames(exprMat_norm_scaled) <- colnames(exprMat_norm)[1:(ncol(exprMat_norm)-1)]
+up_AR_genes_exprMat_norm_scaled <- exprMat_norm_scaled[-3,] %>%
+dplyr::filter(rownames(exprMat_norm_scaled[-3,] ) %in% (hieronymus_geneset %>%
+dplyr::filter(expression == "up") %>%
+dplyr::select(gene) %>% unlist)) %>%
+purrr::modify(., ~{ifelse(.x > 1, 1, ifelse(((.x < 1) & (.x > -1)), 0, -1))})
+down_AR_genes_exprMat_norm_scaled <- exprMat_norm_scaled[-3,]  %>%
+dplyr::filter(rownames(exprMat_norm_scaled[-3,] ) %in% (hieronymus_geneset %>%
+dplyr::filter(expression == "down") %>%
+dplyr::select(gene) %>% unlist))%>%
+purrr::modify(., ~{ifelse(.x < -1, 1, ifelse(((.x > -1) & (.x < 1)), 0, -1))})
+exprMat_AR_score <- dplyr::bind_rows(up_AR_genes_exprMat_norm_scaled,down_AR_genes_exprMat_norm_scaled) %>%
+colSums(na.rm = T) %>%
+reshape2::melt() %>%
+dplyr::select(AR_score=value) %>%
+dplyr::mutate(sample_ID=rownames(.))
+plot_data <- dplyr::left_join(meta_data_RNAseq,exprMat_AR_score,  by="sample_ID") %>%
+dplyr::left_join(.,
+exprMat_norm_scaled["AR",] %>%
+t() %>%
+data.frame() %>%
+dplyr::mutate(sample_ID=rownames(.)),
+by="sample_ID"
+) %>%
+dplyr::filter(TC >= 0.2)
+ggplot2::ggplot(data = plot_data,
+ggplot2::aes( x = AR, y = AR_score)) +
+ggplot2::geom_point(pch = 21, ggplot2::aes(fill = patient_ID, size = AR_copy_number_ACE)) +
+ggplot2::geom_smooth(method = "lm", se=F, ggplot2::aes(colour = patient_ID), show.legend = F) +
+ggplot2::labs(x="Normalized AR expression",
+y="AR score",size = "AR CN", fill = "patient ID") +
+ggplot2::theme_bw()
+plot_data %>%
+dplyr::group_by(patient_ID) %>%
+tidyr::nest() %>%
+dplyr::mutate(model = purrr::map(.x=data, .f = ~cor.test(.x$AR_score, .x$AR)),
+tidied = purrr::map(model, .f=broom::tidy)) %>%
+tidyr::unnest(tidied) %>%
+dplyr::arrange(patient_ID) %>%
+dplyr::select(patient_ID, estimate, p.value)
+save.image("~/Documents/UCL/scripts/R/Projects/Copy-number-architectures-define-treatment-mediated-selection-of-lethal-prostate-cancer-clones/figure_data.RData")
+styler:::set_style_transformers()
+styler:::style_selection()
+styler:::style_active_file()
+styler:::style_active_file()
+styler:::style_active_file()
+styler:::style_active_file()
+styler:::style_selection()
+styler:::style_selection()
+styler:::style_selection()
+styler:::style_selection()
+styler:::style_active_file()
+styler:::style_active_file()
+styler:::style_active_file()
+styler:::style_active_file()
+styler:::style_active_file()
+styler:::style_active_file()
+styler:::style_active_file()
+styler:::style_active_file()
+# load data:
+load("/Users/mahedi/Documents/UCL/scripts/R/Projects/Copy-number-architectures-define-treatment-mediated-selection-of-lethal-prostate-cancer-clones/figure_data.RData")
+"%>%" <- magrittr::`%>%`
+# set the color palette:
+cbPalette <- c(
+"#999999",
+"#E69F00",
+"#56B4E9",
+"#009E73",
+"#F0E442",
+"#0072B2",
+"#D55E00",
+"#CC79A7"
+)
+data <- data_fig3a %>%
+dplyr::mutate(yAdj = dplyr::case_when(
+Type == "BND" ~ 0.5,
+Type == "DUP" ~ 0.4,
+Type == "INV" ~ 0.3,
+Type == "DEL" ~ 0.2
+))
+ggplot2::ggplot(data, ggplot2::aes(start, yCoord, colour = Type)) +
+ggplot2::annotate("rect", xmin = 66774465, xmax = 66950461, ymin = 0.5, ymax = 25.5, alpha = 0.5, fill = "salmon") +
+ggplot2::annotate("rect", xmin = 66117800, xmax = 66128800, ymin = 0.5, ymax = 25.5, fill = "black") +
+ggplot2::geom_point(shape = 73, size = 5) +
+ggplot2::geom_hline(yintercept = c(0.5, data$yCoord + 0.5), colour = "grey", linetype = 2, linewidth = 0.3) +
+ggplot2::scale_colour_manual(values = cbPalette) +
+ggplot2::scale_x_continuous(
+name = "Chromosome X position (Mb)",
+limits = c(4.3e7, 8e7),
+breaks = seq(50e6, 80e6, 1e6),
+labels = as.character(seq(50, 80))
+) +
+ggplot2::annotate("text", x = 4.4e7, y = data$yCoord, label = data$met, hjust = "left") +
+ggplot2::theme_classic() +
+ggplot2::theme(
+axis.title.y = ggplot2::element_blank(),
+axis.text.y = ggplot2::element_blank(),
+axis.ticks.y = ggplot2::element_blank()
+)
+ggplot2::ggplot(data, ggplot2::aes(start, yCoord, colour = Type)) +
+ggplot2::annotate("rect", xmin = 66774465, xmax = 66950461, ymin = 0.5, ymax = 25.5, alpha = 0.5, fill = "salmon") +
+ggplot2::annotate("rect", xmin = 66117800, xmax = 66128800, ymin = 0.5, ymax = 25.5, fill = "black") +
+ggplot2::geom_point(shape = 73, size = 5) +
+ggplot2::geom_hline(yintercept = c(0.5, data$yCoord + 0.5), colour = "grey", linetype = 2, linewidth = 0.3) +
+ggplot2::scale_colour_manual(values = cbPalette) +
+ggplot2::scale_x_continuous(
+name = "Chromosome X position (Mb)",
+limits = c(4.3e7, 8e7),
+breaks = seq(50e6, 80e6, 1e6),
+labels = as.character(seq(50, 80))
+) +
+ggplot2::annotate("text", x = 4.4e7, y = data$yCoord, label = data$met, hjust = "left") +
+ggplot2::theme_classic() +
+ggplot2::theme(
+axis.title.y = ggplot2::element_blank(),
+axis.text.y = ggplot2::element_blank(),
+axis.ticks.y = ggplot2::element_blank()
+)
+# load data:
+load("/Users/mahedi/Documents/UCL/scripts/R/Projects/Copy-number-architectures-define-treatment-mediated-selection-of-lethal-prostate-cancer-clones/figure_data.RData")
+"%>%" <- magrittr::`%>%`
+# calculating CCF
+data_fig3b %>% dplyr::mutate(
+AF = var_read_number / (var_read_number + ref_read_number),
+adjusted_AF = AF / TC,
+u = adjusted_AF * ((TC * T_CCN) + ((1 - TC) * N_CCN)),
+m = dplyr::case_when(
+u >= 1 ~ abs(u),
+u < 1 ~ 1
+),
+CCF = u / m,
+comment = dplyr::case_when(
+CCF == 1 ~ "Clonal",
+CCF == 0 ~ "NA",
+CCF < 1 ~ "Subclonal"
+)
+)
+# library(dplyr)
+# load data:
+load("/Users/mahedi/Documents/UCL/scripts/R/Projects/Copy-number-architectures-define-treatment-mediated-selection-of-lethal-prostate-cancer-clones/figure_data.RData")
+"%>%" <- magrittr::`%>%`
+# calculating CCF:
+data_fig3c %>% dplyr::mutate(
+AF = var_read_number / (var_read_number + ref_read_number),
+adjusted_AF = AF / TC,
+u = adjusted_AF * ((TC * T_CCN) + ((1 - TC) * N_CCN)),
+m = dplyr::case_when(
+u >= 1 ~ abs(u),
+u < 1 ~ 1
+),
+CCF = u / m,
+comment = dplyr::case_when(
+CCF == 1 ~ "Clonal",
+CCF == 0 ~ "NA",
+CCF < 1 ~ "Subclonal"
+)
+)
+load("/Users/mahedi/Documents/UCL/scripts/R/Projects/Copy-number-architectures-define-treatment-mediated-selection-of-lethal-prostate-cancer-clones/figure_data.RData")
+"%>%" <- magrittr::`%>%`
+data <- data_fig4a %>% dplyr::transmute(
+intra_patient_prob = archival_summary_matched_patient / archival_summary_tested_patient,
+inter_patient_prob = archival_summary_matched_control / archival_summary_tested_control,
+patient_ID = patient_ID
+)
+p1 <- ggplot2::ggplot(data) +
+ggplot2::geom_histogram(ggplot2::aes(x = intra_patient_prob), colour = "black", fill = "blue", alpha = 0.5, binwidth = 0.02) +
+ggplot2::ylim(0, 500) +
+ggplot2::theme_classic() +
+ggplot2::xlab("Proportion of transition points detected within a patient") +
+ggplot2::ylab("# Transition points") +
+ggplot2::coord_cartesian(xlim = c(0, 1))
+p2 <- ggplot2::ggplot(data) +
+ggplot2::geom_histogram(ggplot2::aes(x = inter_patient_prob), colour = "black", fill = "red", alpha = 0.5, binwidth = 0.02) +
+ggplot2::ylim(0, 500) +
+ggplot2::theme_classic() +
+ggplot2::xlab("Proportion of transition points detected across patients") +
+ggplot2::ylab("# Transition points") +
+ggplot2::coord_cartesian(xlim = c(0, 1))
+gridExtra::grid.arrange(p1, p2)
+p <- ggplot2::ggplot(data) +
+ggplot2::geom_point(ggplot2::aes(intra_patient_prob, inter_patient_prob, fill = patient_ID), size = 3.5, alpha = 0.3, pch = 21) +
+ggplot2::ylim(0, 1) +
+ggplot2::theme_bw() +
+ggplot2::xlab("Intra-patient proportion of samples with shared TPs") +
+ggplot2::ylab("Inter-patient proportion of samples with shared TPs") +
+ggplot2::labs(fill = "Patient IDs") +
+ggplot2::theme(legend.position = "left")
+ggExtra::ggMarginal(p, type = "density", fill = "grey", alpha = 0.5)
+ggExtra::ggMarginal(p, type = "histogram", fill = "cadetblue", alpha = 0.5)
+load("/Users/mahedi/Documents/UCL/scripts/R/Projects/Copy-number-architectures-define-treatment-mediated-selection-of-lethal-prostate-cancer-clones/figure_data.RData")
+"%>%" <- magrittr::`%>%`
+ggplot2::ggplot(data = data_fig4b) +
+ggplot2::geom_line(ggplot2::aes(Common_TPs, CA34, colour = "CA34"), linewidth = 1) +
+ggplot2::geom_line(ggplot2::aes(Common_TPs, CA36, colour = "CA36"), linewidth = 1) +
+ggplot2::geom_line(ggplot2::aes(Common_TPs, CA76, colour = "CA76"), linewidth = 1) +
+ggplot2::geom_line(ggplot2::aes(Common_TPs, CA83, colour = "CA83"), linewidth = 1) +
+ggplot2::geom_line(ggplot2::aes(Common_TPs, PEA172, colour = "PEA172"), linewidth = 1) +
+ggplot2::theme_bw() +
+ggplot2::scale_x_reverse(breaks = c(25, 20, 15, 10, 5, 1)) +
+ggplot2::scale_color_manual(
+name = "Patients",
+values = c(
+"CA34" = "black",
+"CA36" = "orange",
+"CA76" = "purple",
+"CA83" = "red",
+"PEA172" = "skyblue"
+)
+) +
+ggplot2::xlab("Number of autopsy samples") +
+ggplot2::ylab("Percent of plasma TPs found in autopsy cores") +
+ggplot2::ggtitle("Plasma to metastases comparison of TPs")
+load("/Users/mahedi/Documents/UCL/scripts/R/Projects/Copy-number-architectures-define-treatment-mediated-selection-of-lethal-prostate-cancer-clones/figure_data.RData")
+data_fig4c %>%
+reshape2::melt() %>%
+ggplot2::ggplot() +
+ggplot2::geom_bar(ggplot2::aes(x = SampleID_organ, y = value, fill = variable), stat = "identity", colour = "black", width = .8) +
+ggplot2::facet_grid(. ~ Breakpoint, scales = "free", space = "free") +
+ggplot2::theme_classic() +
+ggplot2::theme(
+axis.text.x = ggplot2::element_text(angle = 90, vjust = 1, hjust = 0.5),
+panel.spacing = ggplot2::unit(0.5, "cm")
+) +
+ggplot2::xlab("CA27") +
+ggplot2::ylab("Number of Transition points") +
+ggplot2::labs(fill = "") +
+ggplot2::scale_fill_manual(values = c("#e28743", "#76b5c5", "#154c79"))
+load("/Users/mahedi/Documents/UCL/scripts/R/Projects/Copy-number-architectures-define-treatment-mediated-selection-of-lethal-prostate-cancer-clones/figure_data.RData")
+"%>%" <- magrittr::`%>%`
+dndsout <- dndscv::dndscv(clonal_mutations) %>% suppressWarnings()
+mutation_position_tib <- dndsout$annotmuts %>%
+dplyr::filter((impact != "Synonymous")) %>%
+dplyr::group_by(sampleID) %>%
+dplyr::transmute(chr_pos = paste0(chr, "_", pos)) %>%
+dplyr::summarise_all(., list) %>%
+dplyr::mutate(cm_number = purrr::map_int(.x = chr_pos, .f = ~ {
+.x %>% length()
+})) %>%
+tidyr::separate(col = sampleID, into = c("patientID", "sample"), sep = "_", remove = F) %>%
+dplyr::select(-sample) %>%
+dplyr::group_by(patientID) %>%
+tidyr::nest()
+func_pct_common <- function(sample_tibble) {
+res_list <- purrr::map(
+.x = combn(sample_tibble$sampleID, 2, simplify = F),
+.f = ~ {
+(sample_tibble %>%
+dplyr::filter(sampleID %in% .x) %>%
+dplyr::pull(chr_pos) %>%
+Reduce(intersect, .) %>%
+length()) / (sample_tibble %>%
+dplyr::filter(sampleID %in% .x) %>%
+dplyr::pull(cm_number) %>%
+Reduce(min, .)) * 100
+}
+)
+names(res_list) <- purrr::map(.x = combn(sample_tibble$sampleID, 2, simplify = F), .f = ~ paste(.x, collapse = " "))
+return(do.call(rbind, res_list) %>% data.frame(pct_common = .))
+}
+percent_common <- purrr::map(
+.x = mutation_position_tib %>% dplyr::pull(data),
+.f = func_pct_common
+) %>%
+do.call(rbind, .)
+df_stat <- percent_common %>%
+as.data.frame() %>%
+merge(., correlation_distances, by = "row.names", all = T) %>%
+dplyr::select(-Row.names)
+p <- ggpubr::ggboxplot(df_stat, x = "within_same_cluster", y = "pct_common", fill = "within_same_cluster") +
+ggplot2::xlab("Within same cluster?") +
+ggplot2::ylab("% common clonal non-silent mutations") +
+ggplot2::labs(fill = "Within same cluster?")
+p + ggpubr::stat_compare_means(method = "t.test")
+label <- paste("italic(R)^2==", (lm(pct_common ~ distance, data = df_stat) %>% summary())$r.squared %>% round(2))
+plt <- ggplot2::ggplot(df_stat, ggplot2::aes(distance, pct_common, label = intersection)) +
+ggplot2::geom_point(ggplot2::aes(fill = within_same_cluster), size = 4, pch = 21) +
+ggplot2::geom_smooth(ggplot2::aes(distance, pct_common), method = "lm") +
+ggplot2::xlab("Correlation distance") +
+ggplot2::ylab("% common clonal non-silent mutations") +
+ggplot2::theme_bw() +
+ggplot2::annotate("text", x = 0.5, y = 90, label = label, parse = T) +
+ggplot2::labs(fill = "Within same cluster?")
+suppressWarnings(print(plt))
+load("/Users/mahedi/Documents/UCL/scripts/R/Projects/Copy-number-architectures-define-treatment-mediated-selection-of-lethal-prostate-cancer-clones/figure_data.RData")
+"%>%" <- magrittr::`%>%`
+draw_tanglegram <- function(tree_1, tree_2, C.Index, p.value, patientID) {
+dendextend::dendlist(
+tree_1 %>%
+dendextend::set("branches_lwd", 3) %>%
+dendextend::set("branches_col", "salmon"),
+tree_2 %>%
+dendextend::set("branches_lwd", 3) %>%
+dendextend::set("branches_col", "cadetblue")
+) %>%
+dendextend::untangle(method = "step2side") %>%
+dendextend::tanglegram(
+common_subtrees_color_lines = T,
+highlight_distinct_edges = FALSE,
+highlight_branches_lwd = F,
+margin_inner = 3,
+lwd = 3,
+color = "darkgrey",
+main_left = "Autosomal",
+cex_main_left = 1,
+main_right = "ChrX-based",
+cex_main_right = 1,
+main = paste0(
+patientID, "\n Baker's Gamma index = ",
+dendextend::cor_bakers_gamma(tree_1, tree_2) %>% round(2),
+"\n Congruence Index = ",
+C.Index,
+"; P-value = ",
+p.value
+),
+cex_main = 0.7
+)
+}
+phylogram::write.dendrogram(autosomal_tree_CA63, edges = F)
+phylogram::write.dendrogram(chrX_tree_CA63, edges = F)
+phylogram::write.dendrogram(autosomal_tree_PEA172, edges = F)
+phylogram::write.dendrogram(chrX_tree_PEA172, edges = F)
+draw_tanglegram(autosomal_tree_CA63, chrX_tree_CA63, 2.05, 3.07e-08, patientID = "CA63")
+draw_tanglegram(autosomal_tree_PEA172, chrX_tree_PEA172, 1.50, 0.00064, patientID = "PEA172")
+load("/Users/mahedi/Documents/UCL/scripts/R/Projects/Copy-number-architectures-define-treatment-mediated-selection-of-lethal-prostate-cancer-clones/figure_data.RData")
+"%>%" <- magrittr::`%>%`
+filter_low_count_gene <- function(mat,
+min_counts = 10L,
+min_cells_pc = 0.90) {
+n_genes_before <- dim(mat)[[1]]
+min_cells <- floor(dim(mat)[[2]] * min_cells_pc)
+keep_genes <- apply(mat, 1, function(x) {
+length(x[x >= min_counts]) > min_cells
+})
+mat <- mat[keep_genes, ]
+return(mat)
+}
+count_data <- read.csv("~/Desktop/test/latest_500kb_run_30Nov21/Manuscript for Charlie Swanton/Nat_Comm/resumission/Final submission/count_data.csv", row.names = 1)
+meta_data_RNAseq <- read.csv("~/Desktop/test/latest_500kb_run_30Nov21/Manuscript for Charlie Swanton/Nat_Comm/resumission/Final submission/meta_data_RNAseq.csv", row.names = 1)
+low_count_filtered_exprMat <- filter_low_count_gene(count_data %>% dplyr::select(meta_data_RNAseq$sample_ID) %>% as.matrix())
+exprMat_norm <- (limma::voom(low_count_filtered_exprMat, normalize.method = "quantile"))$E %>%
+data.frame() %>%
+dplyr::mutate(hgnc = rownames(.)) %>%
+dplyr::filter(hgnc %in% c("AR", hieronymus_geneset$gene))
+exprMat_norm_scaled <- exprMat_norm %>%
+dplyr::select(-hgnc) %>%
+t() %>%
+data.frame() %>%
+purrr::modify(., ~ {
+(.x - mean(.x)) / sd(.x)
+}) %>%
+t() %>%
+data.frame()
+colnames(exprMat_norm_scaled) <- colnames(exprMat_norm)[1:(ncol(exprMat_norm) - 1)]
+up_AR_genes_exprMat_norm_scaled <- exprMat_norm_scaled[-3, ] %>%
+dplyr::filter(rownames(exprMat_norm_scaled[-3, ]) %in% (hieronymus_geneset %>%
+dplyr::filter(expression == "up") %>%
+dplyr::select(gene) %>% unlist())) %>%
+purrr::modify(., ~ {
+ifelse(.x > 1, 1, ifelse(((.x < 1) & (.x > -1)), 0, -1))
+})
+down_AR_genes_exprMat_norm_scaled <- exprMat_norm_scaled[-3, ] %>%
+dplyr::filter(rownames(exprMat_norm_scaled[-3, ]) %in% (hieronymus_geneset %>%
+dplyr::filter(expression == "down") %>%
+dplyr::select(gene) %>% unlist())) %>%
+purrr::modify(., ~ {
+ifelse(.x < -1, 1, ifelse(((.x > -1) & (.x < 1)), 0, -1))
+})
+exprMat_AR_score <- dplyr::bind_rows(up_AR_genes_exprMat_norm_scaled, down_AR_genes_exprMat_norm_scaled) %>%
+colSums(na.rm = T) %>%
+reshape2::melt() %>%
+dplyr::select(AR_score = value) %>%
+dplyr::mutate(sample_ID = rownames(.))
+plot_data <- dplyr::left_join(meta_data_RNAseq, exprMat_AR_score, by = "sample_ID") %>%
+dplyr::left_join(.,
+exprMat_norm_scaled["AR", ] %>%
+t() %>%
+data.frame() %>%
+dplyr::mutate(sample_ID = rownames(.)),
+by = "sample_ID"
+) %>%
+dplyr::filter(TC >= 0.2)
+ggplot2::ggplot(
+data = plot_data,
+ggplot2::aes(x = AR, y = AR_score)
+) +
+ggplot2::geom_point(pch = 21, ggplot2::aes(fill = patient_ID, size = AR_copy_number_ACE)) +
+ggplot2::geom_smooth(method = "lm", se = F, ggplot2::aes(colour = patient_ID), show.legend = F) +
+ggplot2::labs(
+x = "Normalized AR expression",
+y = "AR score", size = "AR CN", fill = "patient ID"
+) +
+ggplot2::theme_bw()
+plot_data %>%
+dplyr::group_by(patient_ID) %>%
+tidyr::nest() %>%
+dplyr::mutate(
+model = purrr::map(.x = data, .f = ~ cor.test(.x$AR_score, .x$AR)),
+tidied = purrr::map(model, .f = broom::tidy)
+) %>%
+tidyr::unnest(tidied) %>%
+dplyr::arrange(patient_ID) %>%
+dplyr::select(patient_ID, estimate, p.value)
+load("/Users/mahedi/Documents/UCL/scripts/R/Projects/Copy-number-architectures-define-treatment-mediated-selection-of-lethal-prostate-cancer-clones/figure_data.RData")
+ggplot2::ggplot(data = ARV12mimic, ggplot2::aes(x = clusterID, y = AR_norm)) +
+ggplot2::geom_jitter(width = 0.1, ggplot2::aes(fill = ARV12mimic), size = 4, pch = 21) +
+ggplot2::theme_classic() +
+ggplot2::xlab("SCRATCH cluster") +
+ggplot2::ylab("Normalized AR expression") +
+ggplot2::scale_fill_discrete(name = "AR-V12 mimics")
+View(covs)
+View(correlation_distances)
+mutation_position_tib
+mutation_position_tib$data
+View(correlation_distances)
+# load data:
+load("/Users/mahedi/Documents/UCL/scripts/R/Projects/Copy-number-architectures-define-treatment-mediated-selection-of-lethal-prostate-cancer-clones/figure_data.RData")
+# set the pipe operator
+"%>%" <- magrittr::`%>%`
+# set the color palette:
+cbPalette <- c(
+"#999999",
+"#E69F00",
+"#56B4E9",
+"#009E73",
+"#F0E442",
+"#0072B2",
+"#D55E00",
+"#CC79A7"
+)
+data <- data_fig3a %>%
+dplyr::mutate(yAdj = dplyr::case_when(
+Type == "BND" ~ 0.5,
+Type == "DUP" ~ 0.4,
+Type == "INV" ~ 0.3,
+Type == "DEL" ~ 0.2
+))
+ggplot2::ggplot(data, ggplot2::aes(start, yCoord, colour = Type)) +
+ggplot2::annotate("rect", xmin = 66774465, xmax = 66950461, ymin = 0.5, ymax = 25.5, alpha = 0.5, fill = "salmon") +
+ggplot2::annotate("rect", xmin = 66117800, xmax = 66128800, ymin = 0.5, ymax = 25.5, fill = "black") +
+ggplot2::geom_point(shape = 73, size = 5) +
+ggplot2::geom_hline(yintercept = c(0.5, data$yCoord + 0.5), colour = "grey", linetype = 2, linewidth = 0.3) +
+ggplot2::scale_colour_manual(values = cbPalette) +
+ggplot2::scale_x_continuous(
+name = "Chromosome X position (Mb)",
+limits = c(4.3e7, 8e7),
+breaks = seq(50e6, 80e6, 1e6),
+labels = as.character(seq(50, 80))
+) +
+ggplot2::annotate("text", x = 4.4e7, y = data$yCoord, label = data$met, hjust = "left") +
+ggplot2::theme_classic() +
+ggplot2::theme(
+axis.title.y = ggplot2::element_blank(),
+axis.text.y = ggplot2::element_blank(),
+axis.ticks.y = ggplot2::element_blank()
+)
