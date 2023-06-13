@@ -1,5 +1,5 @@
 # load data
-load("./figure_data.RData")
+load("./Source_Data.RData")
 
 # set the pipe operator
 "%>%" <- magrittr::`%>%`
@@ -19,3 +19,4 @@ data_fig4c %>%
   ggplot2::ylab("Number of Transition points") +
   ggplot2::labs(fill = "") +
   ggplot2::scale_fill_manual(values = c("#e28743", "#76b5c5", "#154c79"))
+
