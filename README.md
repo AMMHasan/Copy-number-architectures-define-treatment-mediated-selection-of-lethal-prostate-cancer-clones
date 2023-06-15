@@ -3,7 +3,7 @@
 Below are brief descriptions of each code and accompanied source data provided:
 
 
-Figure 2 was generated using GraphPad Prism using data_fig2 (copy number for 299 bins of 0.5Mb in size, along Chromosome X, across patients along with proportion of gain for each patient calculated) following the steps below:
+Figure 2 was generated using GraphPad Prism by connecting the dots representing the proportion of mets with gain for Chr:X 500kb bins from data_fig2 (copy number for 299 bins of 0.5Mb in size, along Chromosome X, across patients along with proportion of gain for each patient calculated). The area below the line was subsequently colored using Adobe Illustrator.
 
 #Figure_3a.R:
 The R codes for Figure 3a use the data_fig3a, from Source_Data.RData object provided with this git project, to generate the map of structural variant break-points at the AR locus on chromosome X. The data are also provided as data_fig3a sheet in Source_Data.xlsx file. 
