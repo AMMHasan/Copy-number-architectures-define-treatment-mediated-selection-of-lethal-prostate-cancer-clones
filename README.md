@@ -18,7 +18,7 @@ Similar to codes for Figure 3c, this code uses the data_fig3c from Source_Data.R
 R codes for Figure 4a use the data_fig4a from Source_Data.RData object and calculates the intra- and inter-patient commonality of copy number transition points detected as diagnosis with that in the metastases harvested at post-mortem. The data can also be found as data_fig4a sheet in Source_Data.xlsx file.
 
 #Figure_4b.R:
-This code snippet utilizes data_fig4b from Source_Data.RData object and generates line graphs depecting percent transtion points detected in plasma at death as a function of the number of autopsy samples from the same patient. The data are also provided as data_fig4b sheet in Source_Data.xlsx file.
+This code snippet utilizes data_fig4b (which contains intra- and inter-patient probability of a finding a Transition Point, p < 0.01) from Source_Data.RData object and generates line graphs depecting percent transtion points detected in plasma at death as a function of the number of autopsy samples from the same patient. The data are also provided as data_fig4b sheet in Source_Data.xlsx file.
 
 #Figure_4c.R:
 This code snippet uses data_fig4c from Source_Data.RData object to generate stacked bars showing different percentages (<20%, 20-80% and >80%) of shared copy number transition points among autopsy samples in patient CA27. The data can also be found as data_fig4c sheet in Source_Data.xlsx file.
