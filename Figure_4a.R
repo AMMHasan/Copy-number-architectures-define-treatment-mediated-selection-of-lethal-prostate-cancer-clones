@@ -15,7 +15,7 @@ p1 <- ggplot2::ggplot(data_fig4a) +
 
 p2 <- ggplot2::ggplot(data_fig4a) +
   ggplot2::geom_histogram(ggplot2::aes(x = inter_patient_prob), colour = "black", fill = "red", alpha = 0.5, binwidth = 0.02) +
-  ggplot2::ylim(0, 600) +
+  ggplot2::ylim(0, 800) +
   ggplot2::theme_classic() +
   ggplot2::xlab("Proportion of transition points detected across patients") +
   ggplot2::ylab("# Transition points") +
@@ -23,16 +23,3 @@ p2 <- ggplot2::ggplot(data_fig4a) +
 
 
 gridExtra::grid.arrange(p1, p2)
-
-# broader picture for supplementary
-p <- ggplot2::ggplot(data_fig4a) +
-  ggplot2::geom_point(ggplot2::aes(intra_patient_prob, inter_patient_prob, fill = patient_ID), size = 3.5, alpha = 0.3, pch = 21) +
-  ggplot2::ylim(0, 1) +
-  ggplot2::theme_bw() +
-  ggplot2::xlab("Intra-patient proportion of samples with shared TPs") +
-  ggplot2::ylab("Inter-patient proportion of samples with shared TPs") +
-  ggplot2::labs(fill = "Patient IDs") +
-  ggplot2::theme(legend.position = "left")
-
-ggExtra::ggMarginal(p, type = "density", fill = "grey", alpha = 0.5)
-ggExtra::ggMarginal(p, type = "histogram", fill = "cadetblue", alpha = 0.5)
