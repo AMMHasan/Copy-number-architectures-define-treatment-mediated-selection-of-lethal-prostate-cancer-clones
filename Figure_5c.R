@@ -46,7 +46,7 @@ up_AR_genes_exprMat_norm_scaled <- exprMat_norm_scaled[-3, ] %>%
     dplyr::filter(expression == "up") %>%
     dplyr::select(gene) %>% unlist())) %>%
   purrr::modify(., ~ {
-    ifelse(.x > 1, 1, ifelse(((.x < 1) & (.x > -1)), 0, -1))
+    ifelse(.x >= 1, 1, ifelse(((.x < 1) & (.x > -1)), 0, -1))
   })
 
 
@@ -55,7 +55,7 @@ down_AR_genes_exprMat_norm_scaled <- exprMat_norm_scaled[-3, ] %>%
     dplyr::filter(expression == "down") %>%
     dplyr::select(gene) %>% unlist())) %>%
   purrr::modify(., ~ {
-    ifelse(.x < -1, 1, ifelse(((.x > -1) & (.x < 1)), 0, -1))
+    ifelse(.x <= -1, 1, ifelse(((.x > -1) & (.x < 1)), 0, -1))
   })
 
 
